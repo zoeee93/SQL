@@ -71,6 +71,26 @@ or:
 
 select Salary as SecondHighestSalary from Employee GROUP BY Salary ORDER BY Salary desc LIMIT 1,1 
 
+However, this solution will be judged as 'Wrong Answer' if there is no such second highest salary since there might be only one record in this table. To overcome this issue, we can take this as a temp table.
+
+MySQL
+
+SELECT
+    (SELECT DISTINCT
+            Salary
+        FROM
+            Employee
+        ORDER BY Salary DESC
+        LIMIT 1 OFFSET 1) AS SecondHighestSalary
+;
+
+SELECT
+    IFNULL(
+      (SELECT DISTINCT Salary
+       FROM Employee
+       ORDER BY Salary DESC
+        LIMIT 1 OFFSET 1),
+    NULL) AS SecondHighestSalary
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -96,7 +116,8 @@ For example, given the above Employee table, the nth highest salary where n = 2 
 这里用function了！！！
 CREATE FUNCTION getNthHighestSalary(N INT) RETURNS INT
 BEGIN
-  SET M = N - 1;
+DECLARE M INT; # 不要忘记;
+SET M = N - 1;
   RETURN (
       # Write your MySQL query statement below.
       select distinct salary from employee order by salary desc limit M, 1
@@ -755,15 +776,281 @@ on c.id = t1.CandidateId
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+178. Rank Scores
+Write a SQL query to rank scores. If there is a tie between two scores, both should have the same ranking. Note that after a tie, the next ranking number should be the next consecutive integer value. In other words, there should be no “holes” between ranks.
+
++----+-------+
+| Id | Score |
++----+-------+
+| 1  | 3.50  |
+| 2  | 3.65  |
+| 3  | 4.00  |
+| 4  | 3.85  |
+| 5  | 4.00  |
+| 6  | 3.65  |
++----+-------+
+For example, given the above Scores table, your query should generate the following report (order by highest score):
+
++-------+------+
+| Score | Rank |
++-------+------+
+| 4.00  | 1    |
+| 4.00  | 1    |
+| 3.85  | 2    |
+| 3.65  | 3    |
+| 3.65  | 3    |
+| 3.50  | 4    |
++-------+------+
+
+drop table if exists scores;
+Create table If Not Exists Scores (Id int, Score DECIMAL(3,2));
+Truncate table Scores;
+insert into Scores (Id, Score) values ('1', '3.5');
+insert into Scores (Id, Score) values ('2', '3.65');
+insert into Scores (Id, Score) values ('3', '4.0');
+insert into Scores (Id, Score) values ('4', '3.85');
+insert into Scores (Id, Score) values ('5', '4.0');
+insert into Scores (Id, Score) values ('6', '3.65');
 
 
+Algorithm
+To determine the ranking of a score, count the number of distinct scores that are >= to that score
+
+MySQL Solution
+SELECT
+    S1.Score,
+    (SELECT COUNT(DISTINCT Score) FROM Scores AS S2 WHERE S2.Score >= S1.Score) AS Rank
+FROM Scores AS S1
+ORDER BY Score DESC
+
+
+或者preunique这个score
+
+SELECT
+  Score,
+  (SELECT count(*) FROM (SELECT distinct Score s FROM Scores) tmp WHERE s >= Score) Rank
+FROM Scores
+ORDER BY Score desc
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+181. Employees earning more than their managers
+The Employee table holds all employees including their managers. Every employee has an Id, and there is also a column for the manager Id.
+
++----+-------+--------+-----------+
+| Id | Name  | Salary | ManagerId |
++----+-------+--------+-----------+
+| 1  | Joe   | 70000  | 3         |
+| 2  | Henry | 80000  | 4         |
+| 3  | Sam   | 60000  | NULL      |
+| 4  | Max   | 90000  | NULL      |
++----+-------+--------+-----------+
+Given the Employee table, write a SQL query that finds out employees who earn more than their managers. For the above table, Joe is the only employee who earns more than his manager.
+
++----------+
+| Employee |
++----------+
+| Joe      |
++----------+
+
+select E.name as Employee from Employee E
+join Employee F
+on E.ManagerId = F.Id
+where E.Salary > F.Salary
+
+
+或者
+SELECT
+    *
+FROM
+    Employee AS a,
+    Employee AS b # Select from two tables will get the Cartesian product of these two tables. In this case, the output will be 4*4 = 16 records. 
+WHERE
+    a.ManagerId = b.Id
+        AND a.Salary > b.Salary
+;
+
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+182. Duplicate Emails
+Write a SQL query to find all duplicate emails in a table named Person.
+
++----+---------+
+| Id | Email   |
++----+---------+
+| 1  | a@b.com |
+| 2  | c@d.com |
+| 3  | a@b.com |
++----+---------+
+For example, your query should return the following for the above table:
+
++---------+
+| Email   |
++---------+
+| a@b.com |
++---------+
+
+select distinct P1.Email from Person as P1
+join Person as P2
+on P1.Email = P2.Email and P1.Id <> P2.Id
+
+注意要用distinct 不然就会出现两个一样的值
+
+
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+197. Rising temperature
+Given a Weather table, write a SQL query to find all dates’ Ids with higher temperature compared to its previous (yesterday’s) dates.
+
++---------+------------------+------------------+
+| Id(INT) | RecordDate(DATE) | Temperature(INT) |
++---------+------------------+------------------+
+|       1 |       2015-01-01 |               10 |
+|       2 |       2015-01-02 |               25 |
+|       3 |       2015-01-03 |               20 |
+|       4 |       2015-01-04 |               30 |
++---------+------------------+------------------+
+For example, return the following Ids for the above Weather table:
+
++----+
+| Id |
++----+
+|  2 |
+|  4 |
++----+
+
+use leetcode;
+drop table if exists weather;
+Create table If Not Exists Weather (Id int, RecordDate date, Temperature int);
+Truncate table Weather;
+insert into Weather (Id, RecordDate, Temperature) values ('1', '2015-01-01', '10');
+insert into Weather (Id, RecordDate, Temperature) values ('2', '2015-01-02', '25');
+insert into Weather (Id, RecordDate, Temperature) values ('3', '2015-01-03', '20');
+insert into Weather (Id, RecordDate, Temperature) values ('4', '2015-01-04', '30');
+
+
+select w1.Id from Weather w1
+join Weather w2
+on w1.Temperature > w2.Temperature
+and DATEDIFF(w1.RecordDate,w2.RecordDate) =1 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+627. Swap Salary
+Given a table salary, such as the one below, that has m=male and f=female values. Swap all f and m values (i.e., change all f values to m and vice versa) with a single update query and no intermediate temp table.
+
+For example:
+
+id	name	sex	salary
+1	A	m	2500
+2	B	f	1500
+3	C	m	5500
+4	D	f	500
+After running your query, the above salary table should have the following rows:
+
+id	name	sex	salary
+1	A	f	2500
+2	B	m	1500
+3	C	f	5500
+4	D	m	500
+
+use leetcode;
+drop table if exists salary;
+create table if not exists salary(id int, name varchar(100), sex char(1), salary int);
+Truncate table salary;
+insert into salary (id, name, sex, salary) values ('1', 'A', 'm', '2500');
+insert into salary (id, name, sex, salary) values ('2', 'B', 'f', '1500');
+insert into salary (id, name, sex, salary) values ('3', 'C', 'm', '5500');
+insert into salary (id, name, sex, salary) values ('4', 'D', 'f', '500');
+
+
+IF 表达式
+IF( expr1 , expr2 , expr3 )
+expr1 的值为 TRUE，则返回值为 expr2 
+expr1 的值为FALSE，则返回值为 expr3
+
+
+update salary
+	set sex = if (sex = "m", 'f',"m");
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+1179. Reformat Department Table
+Table: Department
+
++---------------+---------+
+| Column Name   | Type    |
++---------------+---------+
+| id            | int     |
+| revenue       | int     |
+| month         | varchar |
++---------------+---------+
+(id, month) is the primary key of this table.
+The table has information about the revenue of each department per month.
+The month has values in ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].
+ 
+
+Write an SQL query to reformat the table such that there is a department id column and a revenue column for each month.
+
+The query result format is in the following example:
+
+Department table:
++------+---------+-------+
+| id   | revenue | month |
++------+---------+-------+
+| 1    | 8000    | Jan   |
+| 2    | 9000    | Jan   |
+| 3    | 10000   | Feb   |
+| 1    | 7000    | Feb   |
+| 1    | 6000    | Mar   |
++------+---------+-------+
+
+Result table:
++------+-------------+-------------+-------------+-----+-------------+
+| id   | Jan_Revenue | Feb_Revenue | Mar_Revenue | ... | Dec_Revenue |
++------+-------------+-------------+-------------+-----+-------------+
+| 1    | 8000        | 7000        | 6000        | ... | null        |
+| 2    | 9000        | null        | null        | ... | null        |
+| 3    | null        | 10000       | null        | ... | null        |
++------+-------------+-------------+-------------+-----+-------------+
+
+Note that the result table has 13 columns (1 for the department id + 12 for the months).
+
+
+不会
+
+select id,
+    sum(case month when 'jan' then revenue else null end) as Jan_Revenue,
+    sum(case when month = 'feb' then revenue else null end) as Feb_Revenue,
+	sum(case when month = 'mar' then revenue else null end) as Mar_Revenue,
+	sum(case when month = 'apr' then revenue else null end) as Apr_Revenue,
+	sum(case when month = 'may' then revenue else null end) as May_Revenue,
+	sum(case when month = 'jun' then revenue else null end) as Jun_Revenue,
+	sum(case when month = 'jul' then revenue else null end) as Jul_Revenue,
+	sum(case when month = 'aug' then revenue else null end) as Aug_Revenue,
+	sum(case when month = 'sep' then revenue else null end) as Sep_Revenue,
+	sum(case when month = 'oct' then revenue else null end) as Oct_Revenue,
+	sum(case when month = 'nov' then revenue else null end) as Nov_Revenue,
+	sum(case when month = 'dec' then revenue else null end) as Dec_Revenue
+from department
+group by id
+order by id
+
+或者
+SELECT 
+    id, 
+    sum( if( month = 'Jan', revenue, null ) ) AS Jan_Revenue,
+    sum( if( month = 'Feb', revenue, null ) ) AS Feb_Revenue,
+    sum( if( month = 'Mar', revenue, null ) ) AS Mar_Revenue,
+    sum( if( month = 'Apr', revenue, null ) ) AS Apr_Revenue,
+    sum( if( month = 'May', revenue, null ) ) AS May_Revenue,
+    sum( if( month = 'Jun', revenue, null ) ) AS Jun_Revenue,
+    sum( if( month = 'Jul', revenue, null ) ) AS Jul_Revenue,
+    sum( if( month = 'Aug', revenue, null ) ) AS Aug_Revenue,
+    sum( if( month = 'Sep', revenue, null ) ) AS Sep_Revenue,
+    sum( if( month = 'Oct', revenue, null ) ) AS Oct_Revenue,
+    sum( if( month = 'Nov', revenue, null ) ) AS Nov_Revenue,
+    sum( if( month = 'Dec', revenue, null ) ) AS Dec_Revenue
+FROM 
+    Department
+GROUP BY 
+    id;
+
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
